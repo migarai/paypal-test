@@ -8,14 +8,15 @@ export class PaymentsService {
     {
       id: '1',
       name: 'John Doe',
-      paypalMerchantId: 'MERCHANT_ID_1',
+      paypalMerchantId: '339PVSEB53AFL',
       paypalMerchantemail: 'sb-vzwur32540594@business.example.com',
       services: [{ id: '1', name: 'Consultation', price: 50 }],
     },
     {
       id: '2',
-      name: 'Jane Smith',
-      paypalMerchantId: 'MERCHANT_ID_2',
+      name: 'Max Doe',
+      paypalMerchantId: '6GKMS7S45GX4S',
+      paypalMerchantemail: 'sb-tp2p232540888@business.example.com',
       services: [{ id: '2', name: 'Therapy', price: 80 }],
     },
   ];
@@ -25,8 +26,8 @@ export class PaymentsService {
 
   constructor() {
     this.environment = new paypal.core.SandboxEnvironment(
-      'ASr2HRNIbdOHLQE9KtxVeZIISi3df3IG7RgIXfbG9WBrM7F6fUVIGZoXdblGHe7Z07jwGRL6pc-1ZKef',
-      'EHZC-hMHsr4HSv356U-hQPE_3HKRvr4Im_Jujsj2QY317br0_ztsEBsq-iZRTPH9fS8thnIGEiKlf8mm',
+      'AUqnmVYHz2F1H4qPlXunDvIPE7hOfQrObZGSsa2VfnYjNE85loUGA7DB1dqodsYhJTPWvkj85bxyIdn7',
+      'EBF4t8EkOjYVBEezLF-bquw8Xu3iodMT9N6wz7EfMCcgha5ie863hGlKMc5xsVHMxLKk9XW_GC8lwrdz',
     );
     this.client = new paypal.core.PayPalHttpClient(this.environment);
   }
@@ -39,6 +40,7 @@ export class PaymentsService {
   async createPayment(counselorId: string, price: number) {
     const counselor = this.counselors.find((c) => c.id === counselorId);
     // Ensure merchant_id is a string
+    
     const merchantId = counselor.paypalMerchantId.toString();
 
     const request = new paypal.orders.OrdersCreateRequest();
@@ -52,7 +54,8 @@ export class PaymentsService {
             currency_code: 'USD',
           },
           payee: {
-            email: counselor.paypalMerchantemail,
+            // email: counselor.paypalMerchantemail,
+            merchant_id: merchantId,
           },
         },
       ],
@@ -66,5 +69,9 @@ export class PaymentsService {
     const request = new paypal.orders.OrdersCaptureRequest(orderId);
     const response = await this.client.execute(request);
     return response.result;
+  }
+
+  getCounselorById(counselorId: string) {
+    return this.counselors.find(counselor => counselor.id === counselorId);
   }
 }
