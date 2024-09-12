@@ -19,6 +19,7 @@ export class PaymentsController {
   @Post('capture-payment')
   async capturePayment(@Query('orderId') orderId: string) {
     const result = await this.paymentsService.capturePayment(orderId);
+    console.log("capture payment",result)
     return result;
   }
 
@@ -28,4 +29,6 @@ export class PaymentsController {
     console.log(counselor);
     return counselor ? { merchantId: counselor.paypalMerchantId } : { error: 'Counselor not found' };
   }
+
+  
 }

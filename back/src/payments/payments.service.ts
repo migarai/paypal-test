@@ -54,7 +54,7 @@ export class PaymentsService {
             currency_code: 'USD',
           },
           payee: {
-            // email: counselor.paypalMerchantemail,
+            // email_address: counselor.paypalMerchantemail,
             merchant_id: merchantId,
           },
         },
@@ -62,6 +62,7 @@ export class PaymentsService {
     });
 
     const response = await this.client.execute(request);
+    console.log(response)
     return response.result;
   }
 

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
+import { PayPalButtons, PayPalScriptProvider, } from "@paypal/react-paypal-js";
 
 export default function Home() {
   const [counselorId, setCounselorId] = useState('');
@@ -65,6 +65,19 @@ export default function Home() {
     console.log("Payment Captured", captureData);
   };
 
+  const onCancel = (data) => {
+    console.log("payment canceld", data)
+    alert("payment canceld")
+  }
+
+  const onError = (err) => {
+    console.log("error occured", err);
+    if (err.details && err.details.some(detail => detail.issue === 'INSTRUMENT_DECLINED')) {
+      alert('payment failed - insufficient funds')
+    } else {
+      alert('error occured')
+    }
+  }
   return (
     <div>
       <h1>Book a Counseling Service</h1>
@@ -121,6 +134,8 @@ export default function Home() {
           <PayPalButtons
             createOrder={createOrder}
             onApprove={onApprove}
+            onCancel={onCancel}
+            onError={onError}
           />
         </PayPalScriptProvider>
       )}
