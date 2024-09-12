@@ -1,6 +1,8 @@
-// payments/payments.service.ts
+// payments.service.ts
 import { Injectable } from '@nestjs/common';
 import * as paypal from '@paypal/checkout-server-sdk';
+import { addOrder, orders, } from './orders.database'; 
+// Import the orders array
 
 export enum OrderStatus {
   CREATED = 'CREATED',
@@ -11,7 +13,9 @@ export enum OrderStatus {
 
 export interface Order {
   id: string;
+  Oid: string,
   counselorId: string;
+  serviceId: string;
   price: number;
   status: OrderStatus;
   error?: string; // In case of cancellation due to errors
@@ -36,8 +40,6 @@ export class PaymentsService {
     },
   ];
 
-  private orders: Order[] = []; // Our temporary in-memory "database"
-
   private environment: paypal.core.SandboxEnvironment;
   private client: paypal.core.PayPalHttpClient;
 
@@ -56,11 +58,11 @@ export class PaymentsService {
 
   // Retrieve an order by ID
   getOrderById(orderId: string) {
-    return this.orders.find(order => order.id === orderId);
+    return orders.find(order => order.Oid === orderId);
   }
 
   // Create a new order and track its status
-  async createPayment(counselorId: string, price: number) {
+  async createPayment(counselorId: string, serviceId: string, price: number) {
     const counselor = this.counselors.find((c) => c.id === counselorId);
     if (!counselor) {
       throw new Error('Counselor not found');
@@ -69,14 +71,17 @@ export class PaymentsService {
     const merchantId = counselor.paypalMerchantId.toString();
     
     // Create a new order in our "database"
-    const orderId = Date.now().toString(); // Simple unique ID based on timestamp
+    const ID = Date.now().toString(); // Simple unique ID based on timestamp
     const newOrder: Order = {
-      id: orderId,
+      id: ID,
+      Oid: '',
       counselorId,
+      serviceId,
       price,
       status: OrderStatus.CREATED,
     };
-    this.orders.push(newOrder);
+    orders.push(newOrder);
+
 
     try {
       const request = new paypal.orders.OrdersCreateRequest();
@@ -97,18 +102,24 @@ export class PaymentsService {
       });
 
       const response = await this.client.execute(request);
-      console.log(orderId)
-      return { response: response.result, orderId };
+      console.log("order created successfuly",response.result.id)
+      newOrder.Oid = response.result.id;
+      console.log(newOrder);
+      addOrder(newOrder)
+      return response.result
     } catch (error) {
       // Mark order as canceled due to error
       newOrder.status = OrderStatus.CANCELED_DUE_TO_ERROR;
       newOrder.error = error.message;
       throw new Error(`Order creation failed: ${error.message}`);
     }
+    
   }
 
-  // Capture a payment and update the order status
+  //Capture a payment and update the order status
   async capturePayment(orderId: string) {
+    console.log("capture starting")
+    console.log("id", orderId)
     const order = this.getOrderById(orderId);
     if (!order) {
       throw new Error('Order not found');
@@ -120,15 +131,24 @@ export class PaymentsService {
 
       // Update order status to completed
       order.status = OrderStatus.COMPLETED;
+      console.log("captured", response.result);
+      console.log("Order status",order.status);
       return response.result;
     } catch (error) {
       // Mark order as canceled due to error
       order.status = OrderStatus.CANCELED_DUE_TO_ERROR;
       order.error = error.message;
+      console.log("Order status",order.status);
       throw new Error(`Payment capture failed: ${error.message}`);
-    }
-  }
 
+    }
+    
+  }
+  // async capturePayment(orderId: string) {
+  //   const request = new paypal.orders.OrdersCaptureRequest(orderId);
+  //   const response = await this.client.execute(request);
+  //   return response.result;
+  
   // Cancel an order by customer
   cancelOrder(orderId: string) {
     const order = this.getOrderById(orderId);
@@ -138,6 +158,8 @@ export class PaymentsService {
 
     // Update order status to canceled by the customer
     order.status = OrderStatus.CANCELED_BY_CUSTOMER;
+    console.log("canceld", order.Oid)
+    console.log("order status", order.status);
     return { message: `Order ${orderId} canceled by customer` };
   }
 
@@ -149,5 +171,4 @@ export class PaymentsService {
     return counselor;
   }
 
-  
 }

@@ -11,7 +11,7 @@ export class PaymentsController {
   async createPayment(@Body() body) {
     const { counselorId, serviceId, price } = body;
     try {
-      const payment = await this.paymentsService.createPayment(counselorId, price);
+      const payment = await this.paymentsService.createPayment(counselorId, serviceId, price);
       return {
         success: true,
         message: 'Payment created successfully',

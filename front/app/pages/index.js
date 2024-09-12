@@ -46,14 +46,14 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          counselorId,
-          serviceId,
+          counselorId: counselorId,
+          serviceId: serviceId,
           price: parseFloat(price),
         }),
       });
       const data = await response.json();
       console.log(data)
-      const orderId = data.payment?.orderId
+      const orderId = data.payment?.id;
       console.log("orderid ", orderId)
       return orderId; // Return PayPal order ID to PayPal buttons
     } catch (error) {
@@ -75,11 +75,38 @@ export default function Home() {
     }
   };
 
-  const onCancel = (data) => {
+  // const onCancel = (data) => {
+  //   setPaymentStatus('Payment Canceled');
+  //   console.log("Payment Canceled", data);
+  //   alert("Payment canceled");
+  // };
+
+  const onCancel = async (data) => {
     setPaymentStatus('Payment Canceled');
     console.log("Payment Canceled", data);
-    alert("Payment canceled");
-  };
+
+    try {
+        // Assuming you have the orderId in the 'data' object
+        // const orderId = data.orderId; 
+
+        // Make API call to your backend
+        const response = await fetch(`http://localhost:3001/payments/cancel-payment?orderId=${data.orderID}`, { 
+            method: 'PATCH' 
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log(result.message); // Log success message from backend
+            alert("Payment canceled successfully");
+        } else {
+            console.error('Error canceling order:', response.statusText);
+            alert("There was an error canceling your payment. Please try again.");
+        }
+    } catch (error) {
+        console.error('Error canceling order:', error);
+        alert("There was an error canceling your payment. Please try again.");
+    }
+};
 
   const onError = (err) => {
     console.log("Error occurred", err);
