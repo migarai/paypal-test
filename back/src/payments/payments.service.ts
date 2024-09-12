@@ -2,6 +2,21 @@
 import { Injectable } from '@nestjs/common';
 import * as paypal from '@paypal/checkout-server-sdk';
 
+export enum OrderStatus {
+  CREATED = 'CREATED',
+  COMPLETED = 'COMPLETED',
+  CANCELED_BY_CUSTOMER = 'CANCELED_BY_CUSTOMER',
+  CANCELED_DUE_TO_ERROR = 'CANCELED_DUE_TO_ERROR',
+}
+
+export interface Order {
+  id: string;
+  counselorId: string;
+  price: number;
+  status: OrderStatus;
+  error?: string; // In case of cancellation due to errors
+}
+
 @Injectable()
 export class PaymentsService {
   private counselors = [
@@ -21,6 +36,8 @@ export class PaymentsService {
     },
   ];
 
+  private orders: Order[] = []; // Our temporary in-memory "database"
+
   private environment: paypal.core.SandboxEnvironment;
   private client: paypal.core.PayPalHttpClient;
 
@@ -37,42 +54,100 @@ export class PaymentsService {
     return this.counselors;
   }
 
-  async createPayment(counselorId: string, price: number) {
-    const counselor = this.counselors.find((c) => c.id === counselorId);
-    // Ensure merchant_id is a string
-    
-    const merchantId = counselor.paypalMerchantId.toString();
-
-    const request = new paypal.orders.OrdersCreateRequest();
-    request.prefer('return=representation');
-    request.requestBody({
-      intent: 'CAPTURE',
-      purchase_units: [
-        {
-          amount: {
-            value: price.toString(),
-            currency_code: 'USD',
-          },
-          payee: {
-            // email_address: counselor.paypalMerchantemail,
-            merchant_id: merchantId,
-          },
-        },
-      ],
-    });
-
-    const response = await this.client.execute(request);
-    console.log(response)
-    return response.result;
+  // Retrieve an order by ID
+  getOrderById(orderId: string) {
+    return this.orders.find(order => order.id === orderId);
   }
 
+  // Create a new order and track its status
+  async createPayment(counselorId: string, price: number) {
+    const counselor = this.counselors.find((c) => c.id === counselorId);
+    if (!counselor) {
+      throw new Error('Counselor not found');
+    }
+
+    const merchantId = counselor.paypalMerchantId.toString();
+    
+    // Create a new order in our "database"
+    const orderId = Date.now().toString(); // Simple unique ID based on timestamp
+    const newOrder: Order = {
+      id: orderId,
+      counselorId,
+      price,
+      status: OrderStatus.CREATED,
+    };
+    this.orders.push(newOrder);
+
+    try {
+      const request = new paypal.orders.OrdersCreateRequest();
+      request.prefer('return=representation');
+      request.requestBody({
+        intent: 'CAPTURE',
+        purchase_units: [
+          {
+            amount: {
+              value: price.toString(),
+              currency_code: 'USD',
+            },
+            payee: {
+              merchant_id: merchantId,
+            },
+          },
+        ],
+      });
+
+      const response = await this.client.execute(request);
+      console.log(orderId)
+      return { response: response.result, orderId };
+    } catch (error) {
+      // Mark order as canceled due to error
+      newOrder.status = OrderStatus.CANCELED_DUE_TO_ERROR;
+      newOrder.error = error.message;
+      throw new Error(`Order creation failed: ${error.message}`);
+    }
+  }
+
+  // Capture a payment and update the order status
   async capturePayment(orderId: string) {
-    const request = new paypal.orders.OrdersCaptureRequest(orderId);
-    const response = await this.client.execute(request);
-    return response.result;
+    const order = this.getOrderById(orderId);
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    try {
+      const request = new paypal.orders.OrdersCaptureRequest(orderId);
+      const response = await this.client.execute(request);
+
+      // Update order status to completed
+      order.status = OrderStatus.COMPLETED;
+      return response.result;
+    } catch (error) {
+      // Mark order as canceled due to error
+      order.status = OrderStatus.CANCELED_DUE_TO_ERROR;
+      order.error = error.message;
+      throw new Error(`Payment capture failed: ${error.message}`);
+    }
+  }
+
+  // Cancel an order by customer
+  cancelOrder(orderId: string) {
+    const order = this.getOrderById(orderId);
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    // Update order status to canceled by the customer
+    order.status = OrderStatus.CANCELED_BY_CUSTOMER;
+    return { message: `Order ${orderId} canceled by customer` };
   }
 
   getCounselorById(counselorId: string) {
-    return this.counselors.find(counselor => counselor.id === counselorId);
+    const counselor = this.counselors.find(counselor => counselor.id === counselorId);
+    if (!counselor) {
+      throw new Error('Counselor not found');
+    }
+    return counselor;
   }
+
+  
 }
